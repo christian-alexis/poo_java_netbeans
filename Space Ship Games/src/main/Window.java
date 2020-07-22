@@ -1,30 +1,25 @@
 package main;
 
-import graphics.Assets;
 import java.awt.Canvas;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics;
-import java.awt.HeadlessException;
 import java.awt.image.BufferStrategy;
-import java.util.logging.Level;
-import java.util.logging.Logger;
-import javax.swing.JFrame;
-import static javax.swing.SpringLayout.WIDTH;
-import states.GameState;
 
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-/**
- *
- * @author Leo
- */
+import javax.swing.JFrame;
+
+import gameObjects.Constants;
+import graphics.Assets;
+import input.KeyBoard;
+import input.MouseInput;
+import states.LoadingState;
+import states.MenuState;
+import states.State;
+
 public class Window extends JFrame implements Runnable {
 
-    public static final int WIDTH = 800, HEIGHT = 600;
+    private static final long serialVersionUID = 1L;
+
     private Canvas canvas;
     private Thread thread;
     private boolean running = false;
@@ -36,36 +31,40 @@ public class Window extends JFrame implements Runnable {
     private double TARGETTIME = 1000000000 / FPS;
     private double delta = 0;
     private int AVERAGEFPS = FPS;
-    
-    private GameState gameState;
+
+    private KeyBoard keyBoard;
+    private MouseInput mouseInput;
 
     public Window() {
         setTitle("Space Ship Game");
-        setSize(WIDTH, HEIGHT);
+        setSize(Constants.WIDTH, Constants.HEIGHT);
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
         setLocationRelativeTo(null);
-        setVisible(true);
 
         canvas = new Canvas();
+        keyBoard = new KeyBoard();
+        mouseInput = new MouseInput();
 
-        canvas.setPreferredSize(new Dimension(WIDTH, HEIGHT));
-        canvas.setMaximumSize(new Dimension(WIDTH, HEIGHT));
-        canvas.setMinimumSize(new Dimension(WIDTH, HEIGHT));
+        canvas.setPreferredSize(new Dimension(Constants.WIDTH, Constants.HEIGHT));
+        canvas.setMaximumSize(new Dimension(Constants.WIDTH, Constants.HEIGHT));
+        canvas.setMinimumSize(new Dimension(Constants.WIDTH, Constants.HEIGHT));
         canvas.setFocusable(true);
 
         add(canvas);
-
+        canvas.addKeyListener(keyBoard);
+        canvas.addMouseListener(mouseInput);
+        canvas.addMouseMotionListener(mouseInput);
+        setVisible(true);
     }
 
     public static void main(String[] args) {
         new Window().start();
     }
 
-    private void update() 
-    {
-        gameState.update();
-
+    private void update(float dt) {
+        keyBoard.update();
+        State.getCurrentState().update(dt);
     }
 
     private void draw() {
@@ -81,9 +80,11 @@ public class Window extends JFrame implements Runnable {
         //-----------------------
         g.setColor(Color.BLACK);
 
-        g.fillRect(0, 0, WIDTH, HEIGHT);
+        g.fillRect(0, 0, Constants.WIDTH, Constants.HEIGHT);
 
-       gameState.draw(g);
+        State.getCurrentState().draw(g);
+
+        g.setColor(Color.WHITE);
 
         g.drawString("" + AVERAGEFPS, 10, 20);
 
@@ -93,9 +94,16 @@ public class Window extends JFrame implements Runnable {
     }
 
     private void init() {
-        Assets.init();
-        
-        gameState =  new GameState();
+
+        Thread loadingThread = new Thread(new Runnable() {
+
+            @Override
+            public void run() {
+                Assets.init();
+            }
+        });
+
+        State.changeState(new LoadingState(loadingThread));
     }
 
     @Override
@@ -115,12 +123,13 @@ public class Window extends JFrame implements Runnable {
             lastTime = now;
 
             if (delta >= 1) {
-                update();
+                update((float) (delta * TARGETTIME * 0.000001f));
                 draw();
                 delta--;
                 frames++;
             }
             if (time >= 1000000000) {
+
                 AVERAGEFPS = frames;
                 frames = 0;
                 time = 0;
